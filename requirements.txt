@@ -1,0 +1,9 @@
+langchain
+openai
+python-decouple
+pypdf
+tiktoken
+faiss-cpu
+boto3
+streamlit
+streamlit-chat
