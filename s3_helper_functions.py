@@ -32,7 +32,7 @@ def download_folder_contents_from_s3(bucket_name, prefix, folder_name):
         filename = os.path.basename(key)
         local_file_path = os.path.join(local_path, filename)
         s3.download_file(bucket_name, key, local_file_path)
-        # print(f"{key} downloaded to {local_file_path}")
+        print(f"{key} downloaded to {local_file_path}")
 
 def check_if_folder_exists(bucket_name, prefix, folder_name):
 
@@ -45,11 +45,11 @@ def check_if_folder_exists(bucket_name, prefix, folder_name):
     # Hardcode finding index.faiss for now. Unable to detect folders otherwise
     s3_path = os.path.join(prefix, folder_name, "index.faiss")
     try:
-        # print(s3.head_object(Bucket=bucket_name, Key=s3_path))
-        # print(f"The directory '{s3_path}' exists in the '{bucket_name}' bucket.")
+        print(s3.head_object(Bucket=bucket_name, Key=s3_path))
+        print(f"The directory '{s3_path}' exists in the '{bucket_name}' bucket.")
         return True
     except ClientError:
-        # print(f"The directory '{s3_path}' does not exist in the '{bucket_name}' bucket.")
+        print(f"The directory '{s3_path}' does not exist in the '{bucket_name}' bucket.")
         return False
     
 def is_valid_input(var):
