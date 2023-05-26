@@ -29,7 +29,7 @@ INDEX = config("S3_INDEX")
 bucket = s3.Bucket(BUCKET_NAME)
 
 # Set to None to load all the pages
-MAX_PAGE_SIZE = 25
+MAX_PAGE_SIZE = 100
 
 # Initialise session state variables
 if 'generated' not in st.session_state:
@@ -55,6 +55,7 @@ if 'pdf_index' in url_params:
     if "site_params" not in st.session_state:
         pdf_index_list = url_params['pdf_index']
         if len(pdf_index_list) == 1 and check_if_folder_exists(BUCKET_NAME, INDEX, pdf_index_list[0]):
+            print("success")
             # Make sure the path to the file exists before loading into site_params
             if not os.path.exists(os.path.join(INDEX, pdf_index_list[0])):
                 download_folder_contents_from_s3(BUCKET_NAME, INDEX, st.session_state.pdf_index)
@@ -62,6 +63,9 @@ if 'pdf_index' in url_params:
 
             with open(f"{os.path.join(INDEX, pdf_index_list[0])}/page_details.json", "r") as f:
                 st.session_state['site_params'] = json.load(f)
+                print(st.session_state.site_params)
+    else:
+        print("skipped load")
 
 # Need to create the ability to save jsons to the s3 bucket.
 # if st.session_state.pdf_index:
@@ -80,7 +84,7 @@ def generate_unique_path(original_path):
     while True:
         random_prefix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         unique_folder_name = random_prefix + '_' + folder_name[:8] # truncate to max 10 characters
-
+        unique_folder_name = unique_folder_name.replace(" ", "")
         if not check_if_folder_exists(BUCKET_NAME, INDEX, unique_folder_name):
             return os.path.join(INDEX, unique_folder_name)
 
@@ -89,6 +93,7 @@ def generate_response(prompt):
     vectorstore = FAISS.load_local(os.path.join(INDEX, st.session_state.site_params['pdf_index']), OpenAIEmbeddings(openai_api_key=config("OPENAI_API_KEY")))
 
     get_relevant_sources = vectorstore.similarity_search(prompt, k=2)
+    print(prompt)
     template = f"\n\nUse the information below to help answer the user's question.\n\n{get_relevant_sources[0].page_content}\n\n{get_relevant_sources[1].page_content}"
     # st.write(template)
     with st.expander("Source 1", expanded=False):
@@ -134,6 +139,7 @@ if "site_params" not in st.session_state:
     if st.button("Index PDF", disabled=not bool(file_path)):
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp_file:
             tmp_file.write(file_path.read())
+            print(f"File saved to {tmp_file.name}")
             loader = PyPDFLoader(tmp_file.name)
             pages = loader.load_and_split()
             
@@ -141,7 +147,7 @@ if "site_params" not in st.session_state:
         pages = pages[:MAX_PAGE_SIZE]
 
         # Split the pages into chunks
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
         page_chunks = text_splitter.split_documents(pages)
 
         # Embed into FAISS
@@ -175,7 +181,7 @@ if "site_params" not in st.session_state:
         st.session_state.index_list.append(index_id)
         # Set the radio select to the most recent index id
         st.session_state.index_choice = len(st.session_state.index_list) - 1
-        st.markdown(f"PDF indexed successfully as **{st.session_state.pdf_index}**. The app to chat with your document can be found here: [localhost:8501/?pdf_index={st.session_state.pdf_index}](localhost:8501/?pdf_index={st.session_state.pdf_index}).")
+        st.markdown(f"PDF indexed successfully as **{st.session_state.pdf_index}**. The app to chat with your document can be found here: [https://chatpdf.hopto.org/?pdf_index={st.session_state.pdf_index}](https://chatpdf.hopto.org/?pdf_index={st.session_state.pdf_index}).")
 
 if 'site_params' in st.session_state:
 
