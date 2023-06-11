@@ -59,8 +59,6 @@ if 'pdf_index' in url_params:
             # Make sure the path to the file exists before loading into site_params
             if not os.path.exists(os.path.join(INDEX, pdf_index_list[0])):
                 download_folder_contents_from_s3(BUCKET_NAME, INDEX, st.session_state.pdf_index)
-            
-
             with open(f"{os.path.join(INDEX, pdf_index_list[0])}/page_details.json", "r") as f:
                 st.session_state['site_params'] = json.load(f)
                 print(st.session_state.site_params)
@@ -95,11 +93,7 @@ def generate_response(prompt):
     get_relevant_sources = vectorstore.similarity_search(prompt, k=2)
     print(prompt)
     template = f"\n\nUse the information below to help answer the user's question.\n\n{get_relevant_sources[0].page_content}\n\n{get_relevant_sources[1].page_content}"
-    # st.write(template)
-    with st.expander("Source 1", expanded=False):
-        st.write(get_relevant_sources[0].page_content)
-    with st.expander("Source 2", expanded=False):
-        st.write(get_relevant_sources[1].page_content)
+
     system_source_help = {"role": "system", "content": template}
 
     st.session_state['messages'].append({"role": "user", "content": prompt})
@@ -181,11 +175,11 @@ if "site_params" not in st.session_state:
         st.session_state.index_list.append(index_id)
         # Set the radio select to the most recent index id
         st.session_state.index_choice = len(st.session_state.index_list) - 1
-        st.markdown(f"PDF indexed successfully as **{st.session_state.pdf_index}**. The app to chat with your document can be found here: [https://chatpdf.hopto.org/?pdf_index={st.session_state.pdf_index}](https://chatpdf.hopto.org/?pdf_index={st.session_state.pdf_index}).")
+        st.markdown(f"PDF indexed successfully as **{st.session_state.pdf_index}**. The app to chat with your document can be found here: [https://chatwith.pro/?pdf_index={st.session_state.pdf_index}](https://chatwith.pro/?pdf_index={st.session_state.pdf_index}).")
 
 if 'site_params' in st.session_state:
+    st.info(f'This is a demo chat, make your own here {"https://chatwith.pro"}', icon="ℹ️")
 
-    # st.write("This chatbot can help you understand the content of the document. Try asking it a question about the document.")
     st.markdown(st.session_state.site_params['document_description'])
     response_container = st.container()
     # container for text box
@@ -213,4 +207,4 @@ if 'site_params' in st.session_state:
                     message(st.session_state["past"][i], is_user=True, key=str(i) + '_user')
                     message(st.session_state["generated"][i], key=str(i))
             
-
+st.markdown(f"Created with ❤️ by [Justin Chavez](https://twitter.com/jus10chavez)")
