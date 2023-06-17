@@ -1,19 +1,18 @@
 import boto3
-from decouple import config
-import os
-import streamlit as st
 import json
-import openai
+import os
 import random
 import string
 import tempfile
+from decouple import config
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
-from streamlit_chat import message
 from s3_helper_functions import download_folder_contents_from_s3, check_if_folder_exists, is_valid_input
-
+import streamlit as st
+from streamlit_chat import message
+import openai
 
 # Setup OpenAI
 OPENAI_API_KEY = config("OPENAI_API_KEY")
@@ -32,76 +31,47 @@ bucket = s3.Bucket(BUCKET_NAME)
 MAX_PAGE_SIZE = 100
 
 # Initialise session state variables
-if 'generated' not in st.session_state:
-    st.session_state['generated'] = []
-if 'past' not in st.session_state:
-    st.session_state['past'] = []
-if 'messages' not in st.session_state:
-    st.session_state['messages'] =[
-        {"role": "system", "content": "You are a helpful bot assisting the user in understanding a pdf. The system will provide you with relevant sections of text to help you answer the user's question."}
-    ]
-if 'model_name' not in st.session_state:
-    st.session_state['model_name'] = []
-if 'pdf_index' not in st.session_state:
-    st.session_state['pdf_index'] = ""
-if 'index_list' not in st.session_state:
-    st.session_state['index_list'] = []
-if 'index_choice' not in st.session_state:
-    st.session_state['index_choice'] = 999
+st.session_state.setdefault('generated', [])
+st.session_state.setdefault('past', [])
+st.session_state.setdefault('messages', [
+    {"role": "system", "content": "You are a helpful bot assisting the user in understanding a pdf. The system will provide you with relevant sections of text to help you answer the user's question."}
+])
+st.session_state.setdefault('model_name', [])
+st.session_state.setdefault('pdf_index', "")
+st.session_state.setdefault('index_list', [])
+st.session_state.setdefault('index_choice', 999)
 
 url_params = st.experimental_get_query_params()
 
-if 'pdf_index' in url_params:
-    if "site_params" not in st.session_state:
-        pdf_index_list = url_params['pdf_index']
-        if len(pdf_index_list) == 1 and check_if_folder_exists(BUCKET_NAME, INDEX, pdf_index_list[0]):
-            print("success")
-            # Make sure the path to the file exists before loading into site_params
-            if not os.path.exists(os.path.join(INDEX, pdf_index_list[0])):
-                download_folder_contents_from_s3(BUCKET_NAME, INDEX, st.session_state.pdf_index)
-            
-
-            with open(f"{os.path.join(INDEX, pdf_index_list[0])}/page_details.json", "r") as f:
-                st.session_state['site_params'] = json.load(f)
-                print(st.session_state.site_params)
-    else:
-        print("skipped load")
-
-# Need to create the ability to save jsons to the s3 bucket.
-# if st.session_state.pdf_index:
-
+if 'pdf_index' in url_params and "site_params" not in st.session_state:
+    pdf_index_list = url_params['pdf_index']
+    if len(pdf_index_list) == 1 and check_if_folder_exists(BUCKET_NAME, INDEX, pdf_index_list[0]):
+        if not os.path.exists(os.path.join(INDEX, pdf_index_list[0])):
+            download_folder_contents_from_s3(BUCKET_NAME, INDEX, st.session_state.pdf_index)
+        with open(f"{os.path.join(INDEX, pdf_index_list[0])}/page_details.json", "r") as f:
+            st.session_state['site_params'] = json.load(f)
 
 # Setting page title and header
-st.set_page_config(page_title="PDF Chat", page_icon="💬")
-if "site_params" in st.session_state:
-    title = st.session_state.site_params['page_details_title']
-else:
-    title = "Streamlit PDF Chat"
+st.set_page_config(page_title="ChatWith", page_icon="💬")
+title = st.session_state.site_params['page_details_title'] if "site_params" in st.session_state else "ChatWith"
 st.markdown(f"<h1 style='text-align: center;'>{title}</h1>", unsafe_allow_html=True)
 
 def generate_unique_path(original_path):
     folder_name = os.path.basename(original_path)
     while True:
         random_prefix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        unique_folder_name = random_prefix + '_' + folder_name[:8] # truncate to max 10 characters
+        unique_folder_name = random_prefix + '_' + folder_name[:8]  # truncate to max 10 characters
         unique_folder_name = unique_folder_name.replace(" ", "")
         if not check_if_folder_exists(BUCKET_NAME, INDEX, unique_folder_name):
             return os.path.join(INDEX, unique_folder_name)
 
-
 def generate_response(prompt):
     vectorstore = FAISS.load_local(os.path.join(INDEX, st.session_state.site_params['pdf_index']), OpenAIEmbeddings(openai_api_key=config("OPENAI_API_KEY")))
-
     get_relevant_sources = vectorstore.similarity_search(prompt, k=2)
-    print(prompt)
-    template = f"\n\nUse the information below to help answer the user's question.\n\n{get_relevant_sources[0].page_content}\n\n{get_relevant_sources[1].page_content}"
-    # st.write(template)
-    with st.expander("Source 1", expanded=False):
-        st.write(get_relevant_sources[0].page_content)
-    with st.expander("Source 2", expanded=False):
-        st.write(get_relevant_sources[1].page_content)
+    template = f"\n\nUse the information below to help answer the user's question.\n\n{get_relevant_sources[0].page_content}"
+    if len(get_relevant_sources) > 1:
+        template += f"\n\n{get_relevant_sources[1].page_content}"
     system_source_help = {"role": "system", "content": template}
-
     st.session_state['messages'].append({"role": "user", "content": prompt})
 
     # Get Previous messages and append context
@@ -142,35 +112,27 @@ if "site_params" not in st.session_state:
             print(f"File saved to {tmp_file.name}")
             loader = PyPDFLoader(tmp_file.name)
             pages = loader.load_and_split()
-            
         # only process pages up to MAX_PAGE_SIZE
         pages = pages[:MAX_PAGE_SIZE]
-
         # Split the pages into chunks
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
         page_chunks = text_splitter.split_documents(pages)
-
         # Embed into FAISS
         vectorstore = FAISS.from_documents(page_chunks, OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY))
-
         # Double check the folder is still available before saving to s3
         if custom_name and not check_if_folder_exists(BUCKET_NAME, INDEX, custom_name):
             s3_and_local_path = os.path.join(INDEX, custom_name)
         else:
             s3_and_local_path = generate_unique_path(os.path.splitext(file_path.name)[0])
-        
-
         vectorstore.save_local(os.path.join(s3_and_local_path))
-
         # Save Page details
         new_page_details = {
             "pdf_index": os.path.basename(s3_and_local_path),
             "page_details_title": page_details_title,
             "document_description": page_details_description,
-        } 
+        }
         with open(f"{s3_and_local_path}/page_details.json", "w") as f:
             json.dump(new_page_details, f)
-
         for root, dirs, files in os.walk(s3_and_local_path):
             for file in files:
                 local_path = os.path.join(root, file)
@@ -181,11 +143,10 @@ if "site_params" not in st.session_state:
         st.session_state.index_list.append(index_id)
         # Set the radio select to the most recent index id
         st.session_state.index_choice = len(st.session_state.index_list) - 1
-        st.markdown(f"PDF indexed successfully as **{st.session_state.pdf_index}**. The app to chat with your document can be found here: [https://chatpdf.hopto.org/?pdf_index={st.session_state.pdf_index}](https://chatpdf.hopto.org/?pdf_index={st.session_state.pdf_index}).")
+        link = f"{config('PROTOCOL')}://{config('DOMAIN')}/?pdf_index={index_id}"
+        st.markdown(f"PDF indexed successfully as **{st.session_state.pdf_index}**. The app to chat with your document can be found here: [{link}]({link}).")
 
 if 'site_params' in st.session_state:
-
-    # st.write("This chatbot can help you understand the content of the document. Try asking it a question about the document.")
     st.markdown(st.session_state.site_params['document_description'])
     response_container = st.container()
     # container for text box
@@ -212,5 +173,3 @@ if 'site_params' in st.session_state:
                 for i in range(len(st.session_state['generated'])):
                     message(st.session_state["past"][i], is_user=True, key=str(i) + '_user')
                     message(st.session_state["generated"][i], key=str(i))
-            
-
