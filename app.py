@@ -36,19 +36,16 @@ st.session_state.setdefault('past', [])
 st.session_state.setdefault('messages', [
     {"role": "system", "content": "You are a helpful bot assisting the user in understanding a pdf. The system will provide you with relevant sections of text to help you answer the user's question."}
 ])
-st.session_state.setdefault('model_name', [])
 st.session_state.setdefault('pdf_index', "")
-st.session_state.setdefault('index_list', [])
-st.session_state.setdefault('index_choice', 999)
 
 url_params = st.experimental_get_query_params()
 
 if 'pdf_index' in url_params and "site_params" not in st.session_state:
-    pdf_index_list = url_params['pdf_index']
-    if len(pdf_index_list) == 1 and check_if_folder_exists(BUCKET_NAME, INDEX, pdf_index_list[0]):
-        if not os.path.exists(os.path.join(INDEX, pdf_index_list[0])):
+    pdf_index = url_params['pdf_index']
+    if len(pdf_index) == 1 and check_if_folder_exists(BUCKET_NAME, INDEX, pdf_index[0]):
+        if not os.path.exists(os.path.join(INDEX, pdf_index[0])):
             download_folder_contents_from_s3(BUCKET_NAME, INDEX, st.session_state.pdf_index)
-        with open(f"{os.path.join(INDEX, pdf_index_list[0])}/page_details.json", "r") as f:
+        with open(f"{os.path.join(INDEX, pdf_index[0])}/page_details.json", "r") as f:
             st.session_state['site_params'] = json.load(f)
 
 # Setting page title and header
@@ -60,7 +57,7 @@ def generate_unique_path(original_path):
     folder_name = os.path.basename(original_path)
     while True:
         random_prefix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        unique_folder_name = random_prefix + '_' + folder_name[:8]  # truncate to max 10 characters
+        unique_folder_name = random_prefix + '_' + folder_name[:8]  # truncate folder name
         unique_folder_name = unique_folder_name.replace(" ", "")
         if not check_if_folder_exists(BUCKET_NAME, INDEX, unique_folder_name):
             return os.path.join(INDEX, unique_folder_name)
@@ -88,7 +85,7 @@ def generate_response(prompt):
     return response
 
 if "site_params" not in st.session_state:
-    st.warning("This is a prototype. Please do not upload any sensitive pdfs. Max PDF size is 25 pages.")
+    st.warning("This is a prototype. Please do not upload any sensitive pdfs. Max PDF size is 100 pages.")
 
     file_path = st.file_uploader(label="Upload a PDF file that your chatbot will use", type=['pdf'])
     col1, col2 = st.columns(2)
@@ -140,16 +137,14 @@ if "site_params" not in st.session_state:
                 bucket.upload_file(local_path, os.path.join(s3_and_local_path, relative_path))
         index_id = os.path.basename(s3_and_local_path)
         st.session_state.pdf_index = index_id
-        st.session_state.index_list.append(index_id)
-        # Set the radio select to the most recent index id
-        st.session_state.index_choice = len(st.session_state.index_list) - 1
+
         link = f"{config('PROTOCOL')}://{config('DOMAIN')}/?pdf_index={index_id}"
         st.markdown(f"PDF indexed successfully as **{st.session_state.pdf_index}**. The app to chat with your document can be found here: [{link}]({link}).")
 
 if 'site_params' in st.session_state:
     st.markdown(st.session_state.site_params['document_description'])
+    # container for chat history
     response_container = st.container()
-    # container for text box
     container = st.container()
 
     with container:
