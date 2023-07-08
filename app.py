@@ -44,7 +44,7 @@ if 'pdf_index' in url_params and "site_params" not in st.session_state:
     pdf_index = url_params['pdf_index']
     if len(pdf_index) == 1 and check_if_folder_exists(BUCKET_NAME, INDEX, pdf_index[0]):
         if not os.path.exists(os.path.join(INDEX, pdf_index[0])):
-            download_folder_contents_from_s3(BUCKET_NAME, INDEX, st.session_state.pdf_index)
+            download_folder_contents_from_s3(BUCKET_NAME, INDEX, pdf_index[0])
         with open(f"{os.path.join(INDEX, pdf_index[0])}/page_details.json", "r") as f:
             st.session_state['site_params'] = json.load(f)
 
