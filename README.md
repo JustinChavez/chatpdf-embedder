@@ -8,27 +8,27 @@
 
 3. Navigate into the project directory:
 
-   ```bash
-   $ cd chatpdf-embedder
+   ```
+   cd chatpdf-embedder
    ```
 
 4. Create a new virtual environment:
 
-   ```bash
-   $ python -m venv venv
+   ```
+   python -m venv venv
    $ . venv/bin/activate
    ```
 
 5. Install the requirements:
 
    ```bash
-   $ pip install -r requirements.txt
+   pip install -r requirements.txt
    ```
 
 6. Make a copy of the example environment variables file:
 
    ```bash
-   $ cp .env.example .env
+   cp .env.copy .env
    ```
 
 7. Fill out the new environment variables file with your keys
