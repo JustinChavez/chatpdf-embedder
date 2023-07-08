@@ -9,7 +9,7 @@
 3. Navigate into the project directory:
 
    ```bash
-   $ cd streamlit-secure-app
+   $ cd chatpdf-embedder
    ```
 
 4. Create a new virtual environment:
