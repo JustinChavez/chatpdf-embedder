@@ -18,6 +18,7 @@ import openai
 OPENAI_API_KEY = config("OPENAI_API_KEY")
 openai.organization = config("OPENAI_ORG_ID")
 openai.api_key = config("OPENAI_API_KEY")
+openai.api_base = "https://oai.hconeai.com/v1"
 
 # Setup s3 resources
 s3 = boto3.resource('s3', 
@@ -63,7 +64,7 @@ def generate_unique_path(original_path):
             return os.path.join(INDEX, unique_folder_name)
 
 def generate_response(prompt):
-    vectorstore = FAISS.load_local(os.path.join(INDEX, st.session_state.site_params['pdf_index']), OpenAIEmbeddings(openai_api_key=config("OPENAI_API_KEY")))
+    vectorstore = FAISS.load_local(os.path.join(INDEX, st.session_state.site_params['pdf_index']), OpenAIEmbeddings(openai_api_key=config("OPENAI_API_KEY"), headers={"Helicone-Auth": f"Bearer {config('HELICONE_SECRET')}"}))
     get_relevant_sources = vectorstore.similarity_search(prompt, k=2)
     template = f"\n\nUse the information below to help answer the user's question.\n\n{get_relevant_sources[0].page_content}"
     if len(get_relevant_sources) > 1:
@@ -78,6 +79,7 @@ def generate_response(prompt):
     completion = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=to_send,
+        headers={"Helicone-Auth": f"Bearer {config('HELICONE_SECRET')}"}
     )
     response = completion.choices[0].message.content
     st.session_state['messages'].append({"role": "assistant", "content": response})
@@ -115,7 +117,7 @@ if "site_params" not in st.session_state:
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
         page_chunks = text_splitter.split_documents(pages)
         # Embed into FAISS
-        vectorstore = FAISS.from_documents(page_chunks, OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY))
+        vectorstore = FAISS.from_documents(page_chunks, OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY, headers={"Helicone-Auth": f"Bearer {config('HELICONE_SECRET')}"}))
         # Double check the folder is still available before saving to s3
         if custom_name and not check_if_folder_exists(BUCKET_NAME, INDEX, custom_name):
             s3_and_local_path = os.path.join(INDEX, custom_name)
